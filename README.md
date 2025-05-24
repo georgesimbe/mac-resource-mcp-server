@@ -1,13 +1,16 @@
 # 🛠️ Mac Resource Management MCP Server
 
-A comprehensive Mac Resource Management MCP (Model Context Protocol) server that integrates with Cursor IDE to prevent port conflicts, manage development server instances, and monitor system resources in real-time.
+A comprehensive Mac Resource Management MCP (Model Context Protocol) server that integrates with Cursor IDE to prevent port conflicts, manage development server instances, and monitor system resources in real-time with advanced protection for critical services.
 
 ## ✨ Features
 
+- 🛡️ **Protected Service Detection** - Never accidentally kill Docker, databases, or system services
+- 🎯 **Project-Aware Management** - Track multiple projects and their ports independently
+- 🔄 **Session Persistence** - Survives AI chat restarts and maintains project state
 - 🚫 **Port Conflict Prevention** - Automatically detect and resolve port conflicts
 - 🔍 **Real-time Port Monitoring** - Monitor specific ports for changes
 - 💻 **System Resource Monitoring** - CPU, Memory, and Network usage
-- 🎯 **Development Server Management** - Kill specific or all dev servers
+- 🧠 **Intelligent Cleanup** - Smart development server management that protects critical services
 - 🔗 **Seamless Cursor Integration** - Natural language interface in Cursor IDE
 - 🍎 **Mac-Optimized** - Uses native macOS commands for best performance
 
@@ -28,16 +31,19 @@ After installation, restart Cursor and Claude Desktop. You can now use natural l
 
 ```
 "Check if port 4321 is available"
-"Kill all processes on port 3000"
-"Show me development server status"
-"Free up ports for new development session"
-"Monitor port 4321 for conflicts"
-"What's my current system resource usage?"
+"Register my Next.js project on ports 3000 and 3001"
+"Kill only development servers, protect my database"
+"Show me my active projects"
+"Clean up ports for my React project only"
+"What services are protected from being killed?"
+"Add my custom Redis instance on port 6380 to protected list"
 ```
 
-## 🛠️ Available Tools
+## 🛠️ Core Tools
 
-### `check_port(port: number)`
+### Port Management
+
+#### `check_port(port: number)`
 Check if a specific port is in use and show process details.
 
 **Example:**
@@ -49,60 +55,139 @@ Check if a specific port is in use and show process details.
   • Command: npm run dev
 ```
 
-### `kill_port(port: number, force?: boolean)`
-Kill processes running on a specific port.
+#### `kill_port(port: number, force?: boolean)`
+Kill processes running on a specific port with protection checks.
 
-**Parameters:**
-- `port`: Port number (1-65535)
-- `force`: Use SIGKILL instead of SIGTERM (default: false)
+**Protection Features:**
+- Automatically protects database servers (MySQL, PostgreSQL, Redis, MongoDB)
+- Prevents killing Docker services
+- Blocks system services (SSH, HTTP, HTTPS)
+- Warns about critical processes before termination
 
-### `list_dev_ports()`
+#### `list_dev_ports()`
 Check status of common development ports (3000, 3001, 4321, 5173, 8000, 8080, 8100, 9000).
 
+#### `monitor_port(port: number, duration?: number)`
+Monitor a port for changes in real-time.
+
+### 🛡️ Protection & Security
+
+#### `list_protected_services()`
+Show all protected ports and services that cannot be killed.
+
 **Example:**
 ```
-🔍 Development Ports Status:
+🛡️ Protected Services Configuration:
 
-Port 3000: 🔴 In-use (PID: 12345, Process: node)
-Port 3001: 🟢 Available
-Port 4321: 🔴 In-use (PID: 67890, Process: astro)
+📋 Protected Ports:
+  • Port 22: SSH
+  • Port 3306: MySQL
+  • Port 5432: PostgreSQL
+  • Port 6379: Redis
+  • Port 27017: MongoDB
+  • Port 2375: Docker daemon (unsecured)
+  • Port 2376: Docker daemon (secured)
+
+🔍 Currently Running Protected Services:
+  • MySQL on port 3306 ✅
+  • Redis on port 6379 ✅
 ```
 
-### `system_resources()`
+#### `add_protected_port(port: number, service: string)`
+Add custom ports to the protected list.
+
+**Example:**
+```bash
+> Add port 6380 as "Custom Redis Instance"
+🛡️ Added port 6380 to protected services as "Custom Redis Instance"
+```
+
+#### `kill_dev_servers_selective()`
+Intelligently kill only development servers while protecting databases and system services.
+
+**Smart Detection:**
+- Identifies and protects Docker containers
+- Preserves database connections
+- Maintains system services
+- Only terminates development servers
+
+### 🎯 Project Management
+
+#### `add_project(name: string, directory: string, ports: number[], framework: string)`
+Register a project with its ports for session persistence.
+
+**Example:**
+```bash
+> Register "My Next.js App" at "/Users/dev/my-app" using ports [3000, 3001] with Next.js
+✅ Added project "My Next.js App" with ports [3000, 3001] using Next.js framework
+```
+
+#### `list_active_projects()`
+List all registered active projects and their ports.
+
+**Example:**
+```
+📋 Active Projects:
+
+🚀 My Next.js App (Next.js)
+   📁 /Users/dev/my-app
+   🔌 Ports: 3000, 3001
+   ⏰ Last active: 12/24/2024, 2:30:15 PM
+
+🚀 Astro Blog (Astro)
+   📁 /Users/dev/blog
+   🔌 Ports: 4321
+   ⏰ Last active: 12/24/2024, 1:45:22 PM
+```
+
+#### `kill_project_ports(project_name: string)`
+Kill ports for a specific project only, leaving other projects untouched.
+
+**Smart Project Cleanup:**
+- Only affects the specified project's ports
+- Protects other projects from accidental termination
+- Maintains database and system service connections
+- Perfect for AI chat restarts
+
+### System Monitoring
+
+#### `system_resources()`
 Get current system resource usage (memory, CPU, network).
 
-**Example:**
-```
-📊 System Resources:
-
-💾 Memory Pressure: Normal
-🧠 Memory Usage:
-  Pages free: 123456
-  Pages active: 789012
-  
-⚡ CPU usage: 15.2% user, 8.1% sys, 76.7% idle
-
-🌐 Network:
-  • Established connections: 42
-  • Listening ports: 18
-```
-
-### `kill_dev_servers(server_type?: string)`
+#### `kill_dev_servers(server_type?: string)`
 Kill development servers by type or all.
 
 **Server Types:**
 - `astro` - Kill Astro development servers
-- `npm` - Kill npm development servers
+- `npm` - Kill npm development servers  
 - `vite` - Kill Vite servers
 - `next` - Kill Next.js servers
 - `all` - Kill all development servers (default)
 
-### `monitor_port(port: number, duration?: number)`
-Monitor a port for changes in real-time.
+## 🔄 Session Persistence
 
-**Parameters:**
-- `port`: Port number to monitor
-- `duration`: Duration in seconds (default: 30, max: 300)
+The server automatically maintains session data in `~/.mac-resource-mcp/session.json`:
+
+- **Project Registry** - Remembers your active projects and their ports
+- **Custom Protected Ports** - Preserves your custom protection rules
+- **Auto-Cleanup** - Removes projects inactive for 24+ hours
+- **AI Chat Resilience** - Survives Claude/Cursor restarts
+
+## 🧠 AI Chat Restart Scenarios
+
+Perfect for when you're running multiple projects and the AI chat restarts:
+
+```bash
+# Before AI restart - Register your projects
+"Register my React app on port 3000 and API on 3001"
+"Add my local Redis on port 6380 to protected services"
+"Register my Astro blog on port 4321"
+
+# After AI restart - Projects are automatically remembered
+"Clean up only my React app ports"  # Only kills 3000, 3001
+"Show my active projects"           # Lists all registered projects
+"Kill development servers but protect databases"  # Smart cleanup
+```
 
 ## 🔧 Manual Setup
 
@@ -161,12 +246,21 @@ port-check 3000
 port-kill 3000
 ```
 
-## 🔒 Security
+## 🔒 Security & Protection
 
+### Built-in Protected Services
+- **Databases**: MySQL (3306), PostgreSQL (5432), Redis (6379), MongoDB (27017)
+- **Docker**: Docker daemon (2375, 2376), Docker Swarm (2377)
+- **System Services**: SSH (22), HTTP (80), HTTPS (443), DNS (53), SMTP (25)
+- **Development DBs**: SQL Server (1433), CouchDB (5984), Elasticsearch (9200)
+- **Message Brokers**: RabbitMQ (5672), Kafka (9092)
+
+### Smart Process Detection
 - Validates port ranges (1-65535)
 - Prevents killing system-critical processes
 - Graceful termination with SIGTERM by default
-- Force kill option with explicit confirmation
+- Process pattern matching for critical services
+- Custom protection rules with session persistence
 
 ## 🐛 Troubleshooting
 
@@ -176,8 +270,11 @@ Some processes may take time to terminate. Wait a few seconds and check again.
 ### Permission denied errors
 Ensure you have proper permissions to kill processes. Some system processes require admin privileges.
 
-### Memory pressure unavailable
-The `memory_pressure` command requires macOS. Ensure you're running on a Mac system.
+### Protected service warnings
+If you get protection warnings, use `list_protected_services` to see what's protected and why.
+
+### Session data issues
+Session data is stored in `~/.mac-resource-mcp/session.json`. Delete this file to reset.
 
 ## 🤝 Contributing
 
@@ -196,6 +293,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 - Built with [Model Context Protocol SDK](https://github.com/modelcontextprotocol/typescript-sdk)
 - Optimized for macOS system commands
 - Designed for seamless Cursor IDE integration
+- Enhanced with AI-first development workflows
 
 ---
 
