@@ -4,6 +4,7 @@ import { promisify } from 'util';
 const execAsync = promisify(exec);
 
 import { CallToolResult, TextContent } from '@modelcontextprotocol/sdk/types.js';
+import { SessionManager, ProjectInfo } from './session-manager.js';
 
 export interface ToolResult extends CallToolResult {
   content: TextContent[];
@@ -33,6 +34,48 @@ export interface SystemResources {
 
 export class MacResourceManager {
   private readonly COMMON_DEV_PORTS = [3000, 3001, 4321, 5173, 8000, 8080, 8100, 9000];
+  private sessionManager: SessionManager;
+  
+  // Protected ports that should never be killed
+  private readonly PROTECTED_PORTS = {
+    // Database servers
+    3306: 'MySQL',
+    5432: 'PostgreSQL', 
+    6379: 'Redis',
+    27017: 'MongoDB',
+    // Docker services
+    2375: 'Docker daemon (unsecured)',
+    2376: 'Docker daemon (secured)',
+    2377: 'Docker Swarm',
+    // Common system services
+    22: 'SSH',
+    80: 'HTTP',
+    443: 'HTTPS',
+    25: 'SMTP',
+    53: 'DNS',
+    // Development databases
+    1433: 'SQL Server',
+    5984: 'CouchDB',
+    9200: 'Elasticsearch',
+    8086: 'InfluxDB',
+    // Message brokers
+    5672: 'RabbitMQ',
+    9092: 'Kafka'
+  };
+  
+  // Patterns for critical services that should be protected
+  private readonly PROTECTED_PROCESS_PATTERNS = [
+    'docker',
+    'dockerd', 
+    'mysql',
+    'mysqld',
+    'postgres',
+    'redis-server',
+    'mongod',
+    'elasticsearch',
+    'rabbitmq',
+    'kafka'
+  ];
   
   private readonly SERVER_PATTERNS = {
     astro: ['astro dev', 'astro preview'],
@@ -40,6 +83,19 @@ export class MacResourceManager {
     vite: ['vite', 'vite dev', 'vite serve'],
     next: ['next dev', 'next start'],
   };
+
+  constructor() {
+    this.sessionManager = new SessionManager();
+    this.initializeSession();
+  }
+
+  private async initializeSession(): Promise<void> {
+    try {
+      await this.sessionManager.loadSession();
+    } catch (error) {
+      console.error('Failed to initialize session:', error);
+    }
+  }
 
   async checkPort(port: number): Promise<ToolResult> {
     try {
@@ -96,6 +152,17 @@ export class MacResourceManager {
     try {
       this.validatePort(port);
       
+      // Check if port is protected
+      if (this.isProtectedPort(port)) {
+        return {
+          content: [{
+            type: 'text',
+            text: `🛡️ Port ${port} is protected (${this.PROTECTED_PORTS[port as keyof typeof this.PROTECTED_PORTS]}). Cannot kill processes on this port.`
+          }],
+          isError: true
+        };
+      }
+      
       const { stdout } = await execAsync(`lsof -ti :${port}`);
       
       if (!stdout.trim()) {
@@ -104,6 +171,18 @@ export class MacResourceManager {
             type: 'text',
             text: `ℹ️ No processes found on port ${port}`
           }]
+        };
+      }
+
+      // Check if any processes are critical services
+      const processCheck = await this.checkForCriticalProcesses(port);
+      if (processCheck.hasCritical) {
+        return {
+          content: [{
+            type: 'text',
+            text: `🛡️ Cannot kill port ${port}: Critical service detected (${processCheck.services.join(', ')}).\nUse 'list_protected_services' to see all protected services.`
+          }],
+          isError: true
         };
       }
 
@@ -405,6 +484,301 @@ export class MacResourceManager {
   private validatePort(port: number): void {
     if (!Number.isInteger(port) || port < 1 || port > 65535) {
       throw new Error(`Invalid port number: ${port}. Must be between 1 and 65535.`);
+    }
+  }
+
+  async listProtectedServices(): Promise<ToolResult> {
+    try {
+      let result = '🛡️ Protected Services Configuration:\n\n';
+      
+      result += '📋 Protected Ports:\n';
+      Object.entries(this.PROTECTED_PORTS).forEach(([port, service]) => {
+        result += `  • Port ${port}: ${service}\n`;
+      });
+      
+      result += '\n🔒 Protected Process Patterns:\n';
+      this.PROTECTED_PROCESS_PATTERNS.forEach(pattern => {
+        result += `  • ${pattern}\n`;
+      });
+      
+      result += '\n🔍 Currently Running Protected Services:\n';
+      let foundProtected = false;
+      
+      for (const [port, service] of Object.entries(this.PROTECTED_PORTS)) {
+        try {
+          const { stdout } = await execAsync(`lsof -i :${port} -P -n`);
+          if (stdout.trim()) {
+            foundProtected = true;
+            result += `  • ${service} on port ${port} ✅\n`;
+          }
+        } catch {
+          // Port not in use, which is fine
+        }
+      }
+      
+      if (!foundProtected) {
+        result += '  • No protected services currently running\n';
+      }
+      
+      return {
+        content: [{
+          type: 'text',
+          text: result
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text',
+          text: `❌ Error listing protected services: ${error instanceof Error ? error.message : String(error)}`
+        }],
+        isError: true
+      };
+    }
+  }
+
+  async killDevServersSelective(): Promise<ToolResult> {
+    try {
+      let result = '🎯 Selective Development Server Cleanup:\n\n';
+      let killedCount = 0;
+      const checkedPorts = new Set<number>();
+      
+      // Check common dev ports and only kill non-critical services
+      for (const port of this.COMMON_DEV_PORTS) {
+        try {
+          const { stdout } = await execAsync(`lsof -i :${port} -P -n`);
+          
+          if (stdout.trim()) {
+            const processCheck = await this.checkForCriticalProcesses(port);
+            
+            if (!processCheck.hasCritical && !this.isProtectedPort(port)) {
+              try {
+                const { stdout: pids } = await execAsync(`lsof -ti :${port}`);
+                if (pids.trim()) {
+                  await execAsync(`kill -TERM ${pids.trim().split('\n').join(' ')}`);
+                  result += `✅ Cleaned port ${port}\n`;
+                  killedCount++;
+                  checkedPorts.add(port);
+                }
+              } catch {
+                result += `⚠️ Could not clean port ${port}\n`;
+              }
+            } else {
+              result += `🛡️ Skipped port ${port} (protected service: ${processCheck.services.join(', ')})\n`;
+              checkedPorts.add(port);
+            }
+          }
+        } catch {
+          // Port not in use
+        }
+      }
+      
+      if (killedCount === 0) {
+        result += 'ℹ️ No development servers found to clean up\n';
+      } else {
+        result += `\n🔍 Waiting for process cleanup...`;
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        result += `\n✅ Cleaned ${killedCount} development servers`;
+      }
+      
+      return {
+        content: [{
+          type: 'text',
+          text: result
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text',
+          text: `❌ Error during selective cleanup: ${error instanceof Error ? error.message : String(error)}`
+        }],
+        isError: true
+      };
+    }
+  }
+
+  async addProject(name: string, directory: string, ports: number[], framework: string): Promise<ToolResult> {
+    try {
+      await this.sessionManager.addProject(name, directory, ports, framework);
+      
+      return {
+        content: [{
+          type: 'text',
+          text: `✅ Added project "${name}" with ports [${ports.join(', ')}] using ${framework} framework`
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text',
+          text: `❌ Error adding project: ${error instanceof Error ? error.message : String(error)}`
+        }],
+        isError: true
+      };
+    }
+  }
+
+  async listActiveProjects(): Promise<ToolResult> {
+    try {
+      const projects = this.sessionManager.getActiveProjects();
+      
+      if (projects.length === 0) {
+        return {
+          content: [{
+            type: 'text',
+            text: 'ℹ️ No active projects found. Use "add_project" to register your current projects.'
+          }]
+        };
+      }
+
+      let result = '📋 Active Projects:\n\n';
+      
+      for (const project of projects) {
+        const lastActive = new Date(project.lastActive).toLocaleString();
+        result += `🚀 ${project.name} (${project.framework})\n`;
+        result += `   📁 ${project.directory}\n`;
+        result += `   🔌 Ports: ${project.ports.join(', ')}\n`;
+        result += `   ⏰ Last active: ${lastActive}\n\n`;
+      }
+
+      return {
+        content: [{
+          type: 'text',
+          text: result
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text',
+          text: `❌ Error listing projects: ${error instanceof Error ? error.message : String(error)}`
+        }],
+        isError: true
+      };
+    }
+  }
+
+  async killProjectPorts(projectName: string): Promise<ToolResult> {
+    try {
+      const projects = this.sessionManager.getActiveProjects();
+      const project = projects.find(p => p.name.toLowerCase() === projectName.toLowerCase());
+      
+      if (!project) {
+        return {
+          content: [{
+            type: 'text',
+            text: `❌ Project "${projectName}" not found. Use "list_active_projects" to see available projects.`
+          }],
+          isError: true
+        };
+      }
+
+      let result = `🎯 Killing ports for project "${project.name}":\n\n`;
+      let killedCount = 0;
+
+      for (const port of project.ports) {
+        if (this.isProtectedPort(port)) {
+          result += `🛡️ Skipped port ${port} (protected)\n`;
+          continue;
+        }
+
+        const processCheck = await this.checkForCriticalProcesses(port);
+        if (processCheck.hasCritical) {
+          result += `🛡️ Skipped port ${port} (critical service: ${processCheck.services.join(', ')})\n`;
+          continue;
+        }
+
+        try {
+          const { stdout } = await execAsync(`lsof -ti :${port}`);
+          if (stdout.trim()) {
+            await execAsync(`kill -TERM ${stdout.trim().split('\n').join(' ')}`);
+            result += `✅ Killed processes on port ${port}\n`;
+            killedCount++;
+          } else {
+            result += `ℹ️ Port ${port} already available\n`;
+          }
+        } catch {
+          result += `⚠️ Could not kill port ${port}\n`;
+        }
+      }
+
+      if (killedCount > 0) {
+        result += `\n🔄 Waiting for cleanup...`;
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        result += `\n✅ Freed ${killedCount} ports for project "${project.name}"`;
+      }
+
+      return {
+        content: [{
+          type: 'text',
+          text: result
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text',
+          text: `❌ Error killing project ports: ${error instanceof Error ? error.message : String(error)}`
+        }],
+        isError: true
+      };
+    }
+  }
+
+  async addCustomProtectedPort(port: number, service: string): Promise<ToolResult> {
+    try {
+      this.validatePort(port);
+      await this.sessionManager.addProtectedPort(port, service);
+      
+      return {
+        content: [{
+          type: 'text',
+          text: `🛡️ Added port ${port} to protected services as "${service}"`
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text',
+          text: `❌ Error adding protected port: ${error instanceof Error ? error.message : String(error)}`
+        }],
+        isError: true
+      };
+    }
+  }
+
+  private isProtectedPort(port: number): boolean {
+    const customProtected = this.sessionManager.getProtectedPorts();
+    return port in this.PROTECTED_PORTS || customProtected.includes(port);
+  }
+  
+  private async checkForCriticalProcesses(port: number): Promise<{ hasCritical: boolean; services: string[] }> {
+    try {
+      const { stdout } = await execAsync(`lsof -i :${port} -P -n`);
+      const lines = stdout.trim().split('\n');
+      const processInfo = this.parseProcessInfo(lines);
+      
+      const criticalServices: string[] = [];
+      
+      for (const info of processInfo) {
+        const processName = info.processName.toLowerCase();
+        const command = info.command.toLowerCase();
+        
+        for (const pattern of this.PROTECTED_PROCESS_PATTERNS) {
+          if (processName.includes(pattern) || command.includes(pattern)) {
+            criticalServices.push(info.processName);
+            break;
+          }
+        }
+      }
+      
+      return {
+        hasCritical: criticalServices.length > 0,
+        services: [...new Set(criticalServices)]
+      };
+    } catch {
+      return { hasCritical: false, services: [] };
     }
   }
 

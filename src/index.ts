@@ -119,6 +119,91 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['port'],
         },
       },
+      {
+        name: 'list_protected_services',
+        description: 'List all protected ports and services that cannot be killed',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'kill_dev_servers_selective',
+        description: 'Intelligently kill only development servers while protecting databases and system services',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'add_project',
+        description: 'Register a project with its ports for session persistence',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            name: {
+              type: 'string',
+              description: 'Project name',
+            },
+            directory: {
+              type: 'string',
+              description: 'Project directory path',
+            },
+            ports: {
+              type: 'array',
+              items: { type: 'number' },
+              description: 'Array of ports used by this project',
+            },
+            framework: {
+              type: 'string',
+              description: 'Framework being used (e.g., Next.js, Astro, Vite)',
+            },
+          },
+          required: ['name', 'directory', 'ports', 'framework'],
+        },
+      },
+      {
+        name: 'list_active_projects',
+        description: 'List all registered active projects and their ports',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'kill_project_ports',
+        description: 'Kill ports for a specific project only',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            project_name: {
+              type: 'string',
+              description: 'Name of the project to clean up',
+            },
+          },
+          required: ['project_name'],
+        },
+      },
+      {
+        name: 'add_protected_port',
+        description: 'Add a custom port to the protected list',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            port: {
+              type: 'number',
+              description: 'Port number to protect (1-65535)',
+              minimum: 1,
+              maximum: 65535,
+            },
+            service: {
+              type: 'string',
+              description: 'Description of the service running on this port',
+            },
+          },
+          required: ['port', 'service'],
+        },
+      },
     ],
   };
 });
@@ -146,6 +231,29 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'monitor_port':
         return await resourceManager.monitorPort(args?.port as number, (args?.duration as number) || 30);
+
+      case 'list_protected_services':
+        return await resourceManager.listProtectedServices();
+
+      case 'kill_dev_servers_selective':
+        return await resourceManager.killDevServersSelective();
+
+      case 'add_project':
+        return await resourceManager.addProject(
+          args?.name as string,
+          args?.directory as string,
+          args?.ports as number[],
+          args?.framework as string
+        );
+
+      case 'list_active_projects':
+        return await resourceManager.listActiveProjects();
+
+      case 'kill_project_ports':
+        return await resourceManager.killProjectPorts(args?.project_name as string);
+
+      case 'add_protected_port':
+        return await resourceManager.addCustomProtectedPort(args?.port as number, args?.service as string);
 
       default:
         throw new Error(`Unknown tool: ${name}`);
