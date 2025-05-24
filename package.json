@@ -1,0 +1,44 @@
+{
+  "name": "mac-resource-mcp-server",
+  "version": "1.0.0",
+  "description": "Mac Resource Management MCP Server for Cursor IDE - Port conflict prevention and system monitoring",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc --watch",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "install-global": "npm run build && npm link",
+    "setup-cursor": "node scripts/setup-cursor.js"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "mac",
+    "resource-management",
+    "port-management",
+    "cursor-ide",
+    "development-tools"
+  ],
+  "author": "George Simbe",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/georgesimbe/mac-resource-mcp-server.git"
+  },
+  "bugs": {
+    "url": "https://github.com/georgesimbe/mac-resource-mcp-server/issues"
+  },
+  "homepage": "https://github.com/georgesimbe/mac-resource-mcp-server#readme"
+}
