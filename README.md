@@ -1,6 +1,6 @@
 # 🛠️ Mac Resource Management MCP Server
 
-A comprehensive Mac Resource Management MCP (Model Context Protocol) server that integrates with Cursor IDE to prevent port conflicts, manage development server instances, and monitor system resources in real-time with advanced protection for critical services.
+A comprehensive Mac Resource Management MCP (Model Context Protocol) server that integrates with **both Cursor IDE and Claude Code CLI** to prevent port conflicts, manage development server instances, and monitor system resources in real-time with advanced protection for critical services.
 
 ## ✨ Features
 
@@ -11,7 +11,7 @@ A comprehensive Mac Resource Management MCP (Model Context Protocol) server that
 - 🔍 **Real-time Port Monitoring** - Monitor specific ports for changes
 - 💻 **System Resource Monitoring** - CPU, Memory, and Network usage
 - 🧠 **Intelligent Cleanup** - Smart development server management that protects critical services
-- 🔗 **Seamless Cursor Integration** - Natural language interface in Cursor IDE
+- 🔗 **Dual Platform Support** - Works seamlessly in both Cursor IDE and Claude Code CLI
 - 🍎 **Mac-Optimized** - Uses native macOS commands for best performance
 
 ## 🚀 Quick Start
@@ -25,9 +25,9 @@ cd mac-resource-mcp-server
 ./install.sh
 ```
 
-### Usage in Cursor
+### Usage in Cursor IDE & Claude Code CLI
 
-After installation, restart Cursor and Claude Desktop. You can now use natural language:
+After installation, restart Cursor and Claude Desktop (for Cursor IDE) or ensure Claude Code CLI is properly configured. You can now use natural language:
 
 ```
 "Check if port 4321 is available"
@@ -195,7 +195,7 @@ Perfect for when you're running multiple projects and the AI chat restarts:
 
 - Node.js 18+
 - macOS (optimized for Mac commands)
-- Cursor IDE with Claude integration
+- Cursor IDE with Claude integration **OR** Claude Code CLI
 
 ### Build from Source
 
@@ -210,7 +210,9 @@ npm run build
 npm run setup-cursor
 ```
 
-### Manual Claude Configuration
+### Configuration for Different Platforms
+
+#### Cursor IDE (via Claude Desktop)
 
 Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
 
@@ -224,6 +226,25 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
   }
 }
 ```
+
+#### Claude Code CLI
+
+The server works automatically with Claude Code CLI when properly installed. The MCP server will be available through the standard MCP protocol.
+
+**For detailed Claude Code CLI configuration**, see [claude-code-config.md](claude-code-config.md).
+
+**Quick setup for Claude Code CLI**:
+
+1. **Automatic**: Run `./install.sh` - the server will be available automatically
+2. **Manual**: Add to your project's `CLAUDE.md`:
+   ```markdown
+   # MCP Servers
+   Server path: `/path/to/mac-resource-mcp-server/dist/index.js`
+   ```
+3. **Environment variable**:
+   ```bash
+   export MAC_RESOURCE_MCP_SERVER="node /path/to/mac-resource-mcp-server/dist/index.js"
+   ```
 
 ## 📋 Shell Aliases
 
@@ -292,7 +313,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 - Built with [Model Context Protocol SDK](https://github.com/modelcontextprotocol/typescript-sdk)
 - Optimized for macOS system commands
-- Designed for seamless Cursor IDE integration
+- Designed for seamless Cursor IDE and Claude Code CLI integration
 - Enhanced with AI-first development workflows
 
 ---
